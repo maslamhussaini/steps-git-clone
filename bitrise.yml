@@ -1,35 +1,73 @@
-format_version: "11"
+format_version: '23'
 default_step_lib_source: https://github.com/bitrise-io/bitrise-steplib.git
+project_type: macos
 
 workflows:
-  check:
+  deploy:
     steps:
-    - git::https://github.com/bitrise-steplib/steps-check.git: { }
+      - activate-ssh-key@4: {}
+      - git-clone@8: {}
+      - flutter-installer@0:
+          inputs:
+            - flutter_version: stable
+      # Activate Build Cache for Xcode before build steps
+      - activate-build-cache-for-xcode@1: {}
+      - flutter-build@0:
+          inputs:
+            - platform: ios
+      - flutter-build@0:
+          inputs:
+            - platform: macos
+      - certificate-and-profile-installer@1: {}
+      - xcode-archive-mac@1:
+          inputs:
+            - project_path: "$BITRISE_PROJECT_PATH"
+            - scheme: "$BITRISE_SCHEME"
+            - export_method: "$BITRISE_EXPORT_METHOD"
+      - deploy-to-bitrise-io@2: {}
 
-  e2e:
+  primary:
+    description: Run Flutter build only (no tests)
     steps:
-    - git::https://github.com/bitrise-steplib/steps-check.git:
-        inputs:
-        - workflow: e2e
+      - activate-ssh-key@4: {}
+      - git-clone@8: {}
+      - flutter-installer@0:
+          inputs:
+            - flutter_version: stable
+      # Activate Build Cache for Xcode before build steps
+      - activate-build-cache-for-xcode@1: {}
+      - flutter-build@0:
+          inputs:
+            - platform: ios
+      - flutter-build@0:
+          inputs:
+            - platform: macos
+      - xcode-archive-mac@1:
+          inputs:
+            - project_path: "$BITRISE_PROJECT_PATH"
+            - scheme: "$BITRISE_SCHEME"
+            - export_method: "$BITRISE_EXPORT_METHOD"
+      - deploy-to-bitrise-io@2: {}
 
-  sample:
-    envs:
-    - TEST_APP_URL: https://github.com/bitrise-io/git-clone-test.git
-    - TEST_APP_BRANCH: master
-    steps:
-    - script:
-        inputs:
-        - content: envman add --key STEP_TMPDIR --value $(mktemp -d -t step-git-cloneXXXXXX)
-    - change-workdir:
-        title: Change directory to a temporary directory
-        inputs:
-        - path: $STEP_TMPDIR
-    - path::./:
-        inputs:
-        - clone_into_dir: .
-        - repository_url: $TEST_APP_URL
-        - branch: $TEST_APP_BRANCH
+triggers:
+  push:
+    - branch: main
+  pull_request:
+    - source_branch: "*"
 
-  generate_readme:
-    steps:
-    - git::https://github.com/bitrise-steplib/steps-readme-generator.git@main: { }
+meta:
+  bitrise.io:
+    stack: osx-xcode-16.1.x
+    machine_type_id: g2.mac.large
+
+app:
+  envs:
+    - BITRISE_PROJECT_PATH: macos/Runner.xcworkspace
+      opts:
+        is_expand: false
+    - BITRISE_SCHEME: Runner
+      opts:
+        is_expand: false
+    - BITRISE_EXPORT_METHOD: developer-id
+      opts:
+        is_expand: false
